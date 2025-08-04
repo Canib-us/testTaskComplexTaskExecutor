@@ -1,0 +1,70 @@
+package org.itk.testtaskcomplextaskexecutor;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+
+class ComplexTaskExecutor {
+    private final int numberOfThreads;
+    private static final AtomicInteger executorCounter = new AtomicInteger(0);
+
+    public ComplexTaskExecutor(int numberOfThreads) {
+        this.numberOfThreads = numberOfThreads;
+    }
+
+    public void executeTasks(int numberOfTasks) {
+        String executorName = "Executor-" + executorCounter.incrementAndGet();
+        System.out.println("\n=== " + executorName + " start " +
+                numberOfTasks + " tasks ===");
+
+        ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
+
+        List<String> sharedResults = Collections.synchronizedList(new ArrayList<>());
+
+        CyclicBarrier barrier = new CyclicBarrier(numberOfTasks, () -> {
+            System.out.println("\n--- All task is added ---");
+            System.out.println("All count of result: " + sharedResults.size());
+            for (String result : sharedResults) {
+                System.out.println("  • " + result);
+            }
+            System.out.println("--- Synchronize complete ---\n");
+        });
+
+        try {
+            List<Future<String>> futures = new ArrayList<>();
+
+            for (int i = 1; i <= numberOfTasks; i++) {
+                ComplexTask task = new ComplexTask(i, barrier, sharedResults);
+                Future<String> future = executorService.submit(task);
+                futures.add(future);
+            }
+
+            for (Future<String> future : futures) {
+                try {
+                    future.get();
+                } catch (ExecutionException e) {
+                    System.err.println("Exception for task: " + e.getCause());
+                }
+            }
+
+            System.out.println(executorName + " complete all task\n");
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.err.println("task interrupted");
+        } finally {
+            executorService.shutdown();
+            try {
+                if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
+                    executorService.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                executorService.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+}
+
