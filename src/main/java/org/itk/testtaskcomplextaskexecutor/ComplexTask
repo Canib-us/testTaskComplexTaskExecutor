@@ -1,0 +1,55 @@
+package org.itk.testtaskcomplextaskexecutor;
+
+import java.util.List;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
+
+public class ComplexTask implements Callable<String> {
+    private final int taskId;
+    private final CyclicBarrier cyclicBarrier;
+    private final List<String> sharedResults;
+
+    public ComplexTask(int  taskId, CyclicBarrier cyclicBarrier, List<String> sharedResults) {
+        this.taskId = taskId;
+        this.cyclicBarrier = cyclicBarrier;
+        this.sharedResults = sharedResults;
+    }
+
+    public String execute(){
+        try {
+            System.out.println(Thread.currentThread().getName()+
+                    "accepted the task");
+
+            Thread.sleep(1000+(int)(Math.random()*2000));
+            String result = "Result of task: "+taskId+"; thread: "+Thread.currentThread().getName();
+            System.out.println(Thread.currentThread().getName() +
+                    " complete the task :" + taskId);
+            return result;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return "Task " + taskId + " is interrupted";
+        }
+    }
+
+    @Override
+    public String call() {
+        String result = execute();
+
+        synchronized (sharedResults) {
+            sharedResults.add(result);
+        }
+
+        System.out.println(Thread.currentThread().getName() +
+                " wait for other threads");
+
+        try {
+            cyclicBarrier.await();
+        } catch (InterruptedException | BrokenBarrierException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Exception on barrier", e);
+        }
+
+        return result;
+    }
+}
